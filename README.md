@@ -3,7 +3,7 @@
 Automated personal Pacman repository for **Google Antigravity**, built automatically with GitHub Actions.
 
 ## How It Works
-1. A GitHub Actions workflow runs every 6 hours (and on manual trigger).
+1. A GitHub Actions workflow runs once daily at midnight UTC (and on manual trigger).
 2. It checks `https://antigravity.google/download` for new versions and build IDs.
 3. If an update is detected, it automatically packages the latest Antigravity binary into an Arch Linux package (`.pkg.tar.zst`) using an official `archlinux:base-devel` container, updates the `repo-add` repository database, and publishes it as a GitHub Release under the `x86_64` tag.
 4. Pacman synchronizes directly with GitHub Releases just like any standard Arch Linux repository.
