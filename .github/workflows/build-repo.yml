@@ -1,0 +1,98 @@
+name: Auto-Build Antigravity Pacman Repo
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Runs every 6 hours
+  workflow_dispatch:       # Allows manual trigger in GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for upstream update
+        id: check
+        run: |
+          LATEST_URL=$(curl -sL --compressed "https://antigravity.google/download" | grep -o 'https://storage.googleapis.com/antigravity-public/antigravity-hub/[^"]*linux-x64/Antigravity\.tar\.gz' | head -n 1 || true)
+          if [[ -z "$LATEST_URL" ]]; then
+            echo "Failed to query Google Antigravity download page" >&2
+            exit 1
+          fi
+
+          if [[ "$LATEST_URL" =~ antigravity-hub/([0-9.]+)-([0-9]+)/ ]]; then
+            PKGVER="${BASH_REMATCH[1]}"
+            BUILD="${BASH_REMATCH[2]}"
+          else
+            echo "Could not parse version from URL: $LATEST_URL" >&2
+            exit 1
+          fi
+
+          CURRENT_VER=$(grep '^pkgver=' PKGBUILD | cut -d'=' -f2)
+          CURRENT_BUILD=$(grep '^_build=' PKGBUILD | cut -d'=' -f2)
+
+          echo "Upstream: $PKGVER (Build: $BUILD)"
+          echo "Current:  $CURRENT_VER (Build: $CURRENT_BUILD)"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$PKGVER" != "$CURRENT_VER" ] || [ "$BUILD" != "$CURRENT_BUILD" ]; then
+            echo "needs_build=true" >> $GITHUB_OUTPUT
+            echo "pkgver=$PKGVER" >> $GITHUB_OUTPUT
+            echo "build=$BUILD" >> $GITHUB_OUTPUT
+            
+            sed -i "s/^pkgver=.*/pkgver=$PKGVER/" PKGBUILD
+            sed -i "s/^_build=.*/_build=$BUILD/" PKGBUILD
+            sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          else
+            echo "needs_build=false" >> $GITHUB_OUTPUT
+            echo "Package is already up to date."
+          fi
+
+      - name: Build package and repository database
+        if: steps.check.outputs.needs_build == 'true'
+        run: |
+          docker run --rm -v "$PWD":/workspace -w /workspace archlinux:base-devel bash -c "
+            pacman -Sy --noconfirm curl sudo
+            useradd -m builder
+            echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+            chown -R builder:builder /workspace
+            su builder -c 'makepkg -df --noconfirm'
+            su builder -c 'repo-add custom.db.tar.zst antigravity-*.pkg.tar.zst'
+            cp -L custom.db.tar.zst custom.db
+            cp -L custom.files.tar.zst custom.files
+            cp -L custom.db.tar.zst antigravity.db
+            cp -L custom.db.tar.zst antigravity.db.tar.zst
+            cp -L custom.files.tar.zst antigravity.files
+            cp -L custom.files.tar.zst antigravity.files.tar.zst
+            chmod -R a+rw /workspace
+          "
+
+      - name: Commit updated PKGBUILD
+        if: steps.check.outputs.needs_build == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD
+          if git diff --staged --quiet; then
+            echo "No PKGBUILD changes to commit."
+          else
+            git commit -m "chore(release): update Antigravity to ${{ steps.check.outputs.pkgver }} [skip ci]"
+            git push origin main
+          fi
+
+      - name: Publish to GitHub Release
+        if: steps.check.outputs.needs_build == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete x86_64 --yes --cleanup-tag 2>/dev/null || true
+          sleep 2
+          gh release create x86_64 \
+            --title "Custom Arch Repository (x86_64)" \
+            --notes "Automated repository build for Antigravity ${{ steps.check.outputs.pkgver }} (Build ${{ steps.check.outputs.build }})" \
+            antigravity-*.pkg.tar.zst custom.db custom.db.tar.zst custom.files custom.files.tar.zst antigravity.db antigravity.db.tar.zst antigravity.files antigravity.files.tar.zst

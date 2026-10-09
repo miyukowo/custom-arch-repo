@@ -1,0 +1,18 @@
+# Build artifacts
+src/
+pkg/
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.pkg.tar.gz
+*.tar.gz
+*.tar.xz
+*.tar.zst
+*.log
+
+# Repository databases generated during builds
+*.db
+*.db.tar.gz
+*.db.tar.zst
+*.files
+*.files.tar.gz
+*.files.tar.zst
