@@ -20,7 +20,7 @@ jobs:
       - name: Check for upstream update
         id: check
         run: |
-          LATEST_URL=$(curl -sL --compressed "https://antigravity.google/download" | grep -o 'https://storage.googleapis.com/antigravity-public/antigravity-hub/[^"]*linux-x64/Antigravity\.tar\.gz' | head -n 1 || true)
+          LATEST_URL=$(curl -sL --compressed "https://antigravity.google/download" | grep -oE 'https://storage.googleapis.com/antigravity-public/antigravity-hub/[0-9.]+-[0-9]+/linux-x64/Antigravity\.tar\.gz' | head -n 1 || true)
           if [[ -z "$LATEST_URL" ]]; then
             echo "Failed to query Google Antigravity download page" >&2
             exit 1
