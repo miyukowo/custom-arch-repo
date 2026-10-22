@@ -96,3 +96,29 @@ jobs:
             --title "Custom Arch Repository (x86_64)" \
             --notes "Automated repository build for Antigravity ${{ steps.check.outputs.pkgver }} (Build ${{ steps.check.outputs.build }})" \
             antigravity-*.pkg.tar.zst custom.db custom.db.tar.zst custom.files custom.files.tar.zst antigravity.db antigravity.db.tar.zst antigravity.files antigravity.files.tar.zst
+
+      - name: Sync repository to Cloudflare R2
+        if: steps.check.outputs.needs_build == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          AWS_REGION: auto
+        run: |
+          BUCKET="${R2_BUCKET_NAME:-arch-repo}"
+
+          # 1. Sync package files (*.pkg.tar.zst*) - Immutable 1-year edge cache
+          aws s3 sync . "s3://${BUCKET}/x86_64/" \
+            --endpoint-url "$AWS_ENDPOINT_URL" \
+            --exclude "*" \
+            --include "*.pkg.tar.zst*" \
+            --cache-control "public, max-age=31536000, immutable"
+
+          # 2. Sync database metadata (*.db*, *.files*) - Short 60s cache
+          aws s3 sync . "s3://${BUCKET}/x86_64/" \
+            --endpoint-url "$AWS_ENDPOINT_URL" \
+            --exclude "*" \
+            --include "*.db*" \
+            --include "*.files*" \
+            --cache-control "public, max-age=60, must-revalidate"
