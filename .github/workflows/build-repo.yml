@@ -63,8 +63,6 @@ jobs:
             chown -R builder:builder /workspace
             su builder -c 'makepkg -df --noconfirm'
             su builder -c 'repo-add custom.db.tar.zst antigravity-*.pkg.tar.zst'
-            cp -L custom.db.tar.zst custom.db
-            cp -L custom.files.tar.zst custom.files
             cp -L custom.db.tar.zst antigravity.db
             cp -L custom.db.tar.zst antigravity.db.tar.zst
             cp -L custom.files.tar.zst antigravity.files
@@ -108,15 +106,23 @@ jobs:
         run: |
           BUCKET="${R2_BUCKET_NAME:-arch-repo}"
 
+          # Stage repository files into a clean directory to avoid scanning Docker build artifacts (src/, pkg/)
+          mkdir -p dist/x86_64
+          cp -L antigravity-*.pkg.tar.zst dist/x86_64/
+          cp -L custom.db* dist/x86_64/
+          cp -L custom.files* dist/x86_64/
+          cp -L antigravity.db* dist/x86_64/
+          cp -L antigravity.files* dist/x86_64/
+
           # 1. Sync package files (*.pkg.tar.zst*) - Immutable 1-year edge cache
-          aws s3 sync . "s3://${BUCKET}/x86_64/" \
+          aws s3 sync dist/x86_64/ "s3://${BUCKET}/x86_64/" \
             --endpoint-url "$AWS_ENDPOINT_URL" \
             --exclude "*" \
             --include "*.pkg.tar.zst*" \
             --cache-control "public, max-age=31536000, immutable"
 
           # 2. Sync database metadata (*.db*, *.files*) - Short 60s cache
-          aws s3 sync . "s3://${BUCKET}/x86_64/" \
+          aws s3 sync dist/x86_64/ "s3://${BUCKET}/x86_64/" \
             --endpoint-url "$AWS_ENDPOINT_URL" \
             --exclude "*" \
             --include "*.db*" \

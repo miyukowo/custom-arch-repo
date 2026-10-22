@@ -23,7 +23,7 @@ Open `/etc/pacman.conf` with root privileges:
 sudo nano /etc/pacman.conf
 ```
 
-Append the following configuration to the bottom (replace `arch.example.com` with your custom domain):
+Append the following configuration to the bottom:
 
 ```ini
 [custom]
