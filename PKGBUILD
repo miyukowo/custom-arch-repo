@@ -1,9 +1,9 @@
 # Maintainer: miyukowo <https://github.com/miyukowo>
 
 pkgname=antigravity
-pkgver=2.26.0
+pkgver=2.28.0
 pkgrel=1
-_build=6546645232517120
+_build=6410674700681216
 pkgdesc='Google Antigravity 2.0 multi-agent orchestration platform'
 arch=('x86_64')
 url='https://antigravity.google/'
